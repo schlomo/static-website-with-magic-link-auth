@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About - Protected Website</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+
+<body>
+    <header>
+        <nav>
+            <div class="logo">Protected Site</div>
+            <ul>
+                <li><a href="/">Home</a></li>
+                <li><a href="/about.html">About</a></li>
+                <li><a href="/contact.html">Contact</a></li>
+            </ul>
+            <form action="/auth/logout" method="POST" class="logout-form">
+                <button type="submit">Sign Out</button>
+            </form>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <h1>About Us</h1>
+            <p>Learn more about our protected website</p>
+        </section>
+
+        <section class="content">
+            <div class="about-card">
+                <h2>Our Mission</h2>
+                <p>We provide a secure platform for sharing sensitive information with authorized users only. Our magic
+                    link authentication ensures that only verified individuals can access the content.</p>
+            </div>
+
+            <div class="about-card">
+                <h2>Security Features</h2>
+                <ul>
+                    <li>Email-based authentication</li>
+                    <li>Secure session management</li>
+                    <li>Protected content delivery</li>
+                    <li>Regular security updates</li>
+                </ul>
+            </div>
+
+            <div class="about-card">
+                <h2>Technology Stack</h2>
+                <p>Built with modern web technologies:</p>
+                <ul>
+                    <li>Node.js and Express for the backend</li>
+                    <li>Secure cookie-based sessions</li>
+                    <li>Modern HTML5 and CSS3</li>
+                    <li>Responsive design</li>
+                </ul>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Protected Website. All rights reserved.</p>
+    </footer>
+</body>
+
+</html>

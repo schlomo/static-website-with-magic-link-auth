@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Protected Website</title>
+    <link rel="stylesheet" href="/auth/css/login.css">
+    <style>
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loading-text {
+            margin-top: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="login-box">
+
+            <form id="loginForm" action="/auth/login" method="POST">
+                <h1>Sign In</h1>
+                <p>Enter your email address to receive a magic link to login</p>
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+
+                <button type="submit">Send Magic Link</button>
+            </form>
+
+            <div class="loading" id="loading">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">Sending magic link...</div>
+            </div>
+
+            <div class="messages" id="messages"></div>
+        </div>
+    </div>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const error = params.get('error');
+        const message = params.get('message');
+        const messagesDiv = document.getElementById('messages');
+        const loadingDiv = document.getElementById('loading');
+        const form = document.getElementById('loginForm');
+
+        if (error) {
+            messagesDiv.innerHTML = `<div class="error">${decodeURIComponent(error)}</div>`;
+        } else if (message) {
+            messagesDiv.innerHTML = `<div class="success">${decodeURIComponent(message)}</div>`;
+        }
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            // Show loading indicator
+            form.style.display = 'none';
+            loadingDiv.style.display = 'block';
+            messagesDiv.innerHTML = '';
+
+            // Submit the form after a short delay to ensure the loading indicator is visible
+            setTimeout(() => {
+                form.submit();
+            }, 100);
+        });
+    </script>
+</body>
+
+</html>

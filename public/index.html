@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Protected Website</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+
+<body>
+    <header>
+        <nav>
+            <div class="logo">Protected Site</div>
+            <ul>
+                <li><a href="/">Home</a></li>
+                <li><a href="/about.html">About</a></li>
+                <li><a href="/contact.html">Contact</a></li>
+            </ul>
+            <form action="/auth/logout" method="POST" class="logout-form">
+                <button type="submit">Sign Out</button>
+            </form>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <h1>Welcome to the Protected Area</h1>
+            <p>This content is only accessible to authorized users.</p>
+        </section>
+
+        <section class="features">
+            <div class="feature-card">
+                <h2>Secure Access</h2>
+                <p>Protected by magic link authentication</p>
+            </div>
+            <div class="feature-card">
+                <h2>Private Content</h2>
+                <p>Exclusive content for authorized users</p>
+            </div>
+            <div class="feature-card">
+                <h2>Simple Interface</h2>
+                <p>Easy to navigate and use</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Protected Website. All rights reserved.</p>
+    </footer>
+</body>
+
+</html>

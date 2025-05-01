@@ -1,0 +1,6 @@
+# List of allowed email addresses
+# One email per line
+# Lines starting with # are comments
+# Empty lines are ignored
+
+nobody@nowhere.com

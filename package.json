@@ -1,0 +1,23 @@
+{
+    "name": "static-website-with-magic-link-auth",
+    "version": "1.0.0",
+    "description": "Secure gateway for static website with magic link authentication",
+    "main": "server.js",
+    "scripts": {
+        "build": "docker build -t static-website-with-magic-link-auth .",
+        "run-dev": "docker run -p 3000:3000 -v $(pwd)/allowed_emails_dev.txt:/app/allowed_emails.txt static-website-with-magic-link-auth",
+        "run-example": "docker run -p 3000:3000 --env-file example.env -v $(pwd)/allowed_emails_dev.txt:/app/allowed_emails.txt static-website-with-magic-link-auth",
+        "start": "env ALLOWED_EMAILS_FILE=allowed_emails_dev.txt node server.js",
+        "dev": "env ALLOWED_EMAILS_FILE=allowed_emails_dev.txt nodemon server.js"
+    },
+    "dependencies": {
+        "express": "^4.18.2",
+        "cookie-session": "^2.1.0",
+        "cookie-parser": "^1.4.6",
+        "nodemailer": "^6.9.7",
+        "dotenv": "^16.3.1"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.2"
+    }
+}
