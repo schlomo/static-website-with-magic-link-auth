@@ -1,14 +1,19 @@
+// Load environment variables from .env file
 require('dotenv').config();
+// Import required modules
 const express = require('express');
 const cookieSession = require('cookie-session');
 const cookieParser = require('cookie-parser');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+// Import fs modules for file system operations
 const fs = require('fs').promises;
 const path = require('path');
 const fsSync = require('fs');
 
+// Destructure environment variables, providing default values
 const {
+    // Session configuration
     SESSION_SECRET = '2b7e151628aed2a6abf7158809cf4f3c2b7e151628aed2a6abf7158809cf4f3c',
     MAGIC_LINK_SECRET = '2b7e151628aed2a6abf7158809cf4f3c2b7e151628aed2a6abf7158809cf4f3c',
     EMAIL_HOST = '',
@@ -16,6 +21,7 @@ const {
     EMAIL_USER = '',
     EMAIL_PASS = '',
     EMAIL_API_KEY = '',
+    // Email default values
     EMAIL_FROM = '"Magic Link Auth" <noreply@localhost>',
     EMAIL_SUBJECT = 'Your Magic Link',
     EMAIL_TEXT_TEMPLATE = 'Click this link to sign in: {url}',
@@ -39,21 +45,27 @@ const {
         </body>
         </html>
     `,
+    // Application default values
     APP_NAME = 'Static Website with Magic Link Auth App',
-    APP_BASE_URL = 'http://localhost:3000',
+    APP_BASE_URL,
     NODE_ENV = 'development',
     SESSION_HOURS = 24,
     ALLOWED_EMAILS_FILE = 'allowed_emails.txt',
     PORT = 3000,
+    // Get the variable from the env
 } = process.env;
 
-// Helper functions - Error handling
+// Helper function - Error handling
+/**
+ * @function fatalError - Logs an error message and exits the process with a failure code.
+ * @param {string} message - The error message to log.
+ */
 function fatalError(message) {
     console.error(message);
     process.exit(1);
 }
 
-// Helper functions - Configuration validation
+/** @function validateConfig - Validates the application's configuration. */
 function validateConfig() {
     // Validate SESSION_HOURS
     const sessionDuration = Number.parseFloat(SESSION_HOURS);
@@ -72,11 +84,15 @@ function validateConfig() {
         fatalError('NODE_ENV must be either "development" or "production"');
     }
 
-    // Validate APP_BASE_URL
-    try {
-        new URL(APP_BASE_URL);
-    } catch (error) {
-        fatalError('APP_BASE_URL must be a valid URL');
+    if (APP_BASE_URL) {
+        // Validate APP_BASE_URL
+        try {
+            new URL(APP_BASE_URL);
+        } catch (error) {
+            fatalError('APP_BASE_URL must be a valid URL');
+        }
+    } else {
+        console.warn('Notice: APP_BASE_URL is not set. It will be dynamically determined at runtime.');
     }
 
     // Validate secrets format
@@ -93,12 +109,18 @@ function validateConfig() {
     }
 
     return {
-        sessionDuration: sessionDuration * 60 * 60 * 1000, // Convert hours to milliseconds
+        // Convert hours to milliseconds
+        sessionDuration: sessionDuration * 60 * 60 * 1000, 
         emailPort,
         isProduction: NODE_ENV === 'production',
         hasEmailAuth: Boolean(EMAIL_USER && (EMAIL_PASS || EMAIL_API_KEY))
     };
 }
+
+// Main part of the code
+// This is the part that validate the environment variables
+// and prepare the server configuration.
+
 
 // Validate configuration and get derived values
 const { sessionDuration, emailPort, isProduction, hasEmailAuth } = validateConfig();
@@ -146,12 +168,21 @@ Has Email Auth: ${hasEmailAuth}
 const MAGIC_LINK_EXPIRY = 15 * 60 * 1000; // 15 minutes
 const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-// Helper functions - Email validation
+/**
+ * @function isValidEmail - Checks if an email is in a valid format.
+ * @param {string} email - The email to validate.
+ * @returns {boolean} - True if the email is valid, false otherwise.
+ */
 function isValidEmail(email) {
     return EMAIL_REGEX.test(email);
 }
 
-// Helper functions - Template processing
+/**
+ * @function processTemplate - Processes a template string, replacing variables with provided values.
+ * @param {string} template - The template string.
+ * @param {object} variables - An object with key-value pairs to replace in the template.
+ * @returns {string} - The processed template.
+ */
 function processTemplate(template, variables) {
     return template.replace(/\{(\w+)\}/g, (match, key) => {
         if (key in variables) {
@@ -163,8 +194,16 @@ function processTemplate(template, variables) {
     });
 }
 
-// Helper functions - Email file management
+// Variables
+// Set that contains the allowed emails
 let allowedEmails = new Set();
+
+/**
+ * @function loadAllowedEmails - Loads allowed emails from the file specified by ALLOWED_EMAILS_FILE.
+ *
+ * This function reads a file that should contain one allowed email per line.
+ * It validates each email format and stores them in the allowedEmails Set.
+ */
 
 async function loadAllowedEmails() {
     try {
@@ -204,11 +243,22 @@ async function loadAllowedEmails() {
     }
 }
 
+/**
+ * @function isEmailAllowed - Checks if an email is in the allowedEmails set.
+ * @param {string} email - The email to check.
+ * @returns {boolean} - True if the email is allowed, false otherwise.
+ */
 function isEmailAllowed(email) {
     return allowedEmails.has(email.toLowerCase());
 }
 
-// Helper functions - Token management
+/**
+ * @function generateToken - Generates an encrypted token with an expiration time.
+ *
+ * This function creates a token that includes an expiration date,
+ * encrypts it using AES-256-GCM, and formats it for use in a URL.
+ * @returns {string} - The generated token.
+ */
 function generateToken() {
     const payload = {
         expires: Date.now() + MAGIC_LINK_EXPIRY
@@ -223,6 +273,13 @@ function generateToken() {
     return `${iv.toString('hex')}:${encrypted}:${authTag.toString('hex')}`;
 }
 
+/**
+ * @function decryptToken - Decrypts and validates a token.
+ *
+ * This function takes an encrypted token, decrypts it, and checks
+ * if the token has expired.
+ * @param {string} token - The token to decrypt.
+ */
 function decryptToken(token) {
     try {
         const [ivHex, encrypted, authTagHex] = token.split(':');
@@ -276,7 +333,15 @@ const transporter = nodemailer.createTransport({
 
 });
 
-// Helper functions - Email sending
+/**
+ * @function sendMagicLinkEmail - Sends a magic link email.
+ *
+ * This function sends a magic link to the user's email address.
+ * It uses the `nodemailer` library to send the email.
+ * @param {string} email - The recipient's email address.
+ * @param {string} verificationUrl - The magic link URL.
+ * @returns {Promise<void>} - Promise that resolves when the email is sent.
+ */
 async function sendMagicLinkEmail(email, verificationUrl) {
     if (!EMAIL_FROM) {
         console.error('Error: No FROM address configured. Set EMAIL_FROM environment variable with format: "Display Name" <email@domain.com>');
@@ -305,7 +370,7 @@ async function sendMagicLinkEmail(email, verificationUrl) {
     try {
         const info = await transporter.sendMail(mailOptions);
 
-        if (NODE_ENV === 'development') {
+        if (!isProduction) {
             console.log('Email sent:');
             console.log('From:', info.envelope.from);
             console.log('To:', info.envelope.to);
@@ -326,7 +391,8 @@ async function sendMagicLinkEmail(email, verificationUrl) {
         if (error.message.includes('ECONNREFUSED') ||
             error.message.includes('ENOTFOUND') ||
             error.message.includes('connect')) {
-            console.error('Error: No mail server configured. Set EMAIL_HOST and EMAIL_PORT environment variables.');
+            console.error('Error: No valid mail server configured. Set EMAIL_HOST and EMAIL_PORT environment variables.');
+            console.error(error.message);
             console.log('Email would be sent with these options:', {
                 to: mailOptions.to,
                 subject: mailOptions.subject,
@@ -350,7 +416,15 @@ async function sendMagicLinkEmail(email, verificationUrl) {
     }
 }
 
-// Helper functions - Server management
+/**
+ * @function shutdown - Handles the server's graceful shutdown.
+ *
+ * This function is called when the server receives a SIGTERM or SIGINT signal.
+ * It closes the server and exits the process.
+ * Steps:
+ * 1. Logs a message indicating that the server is shutting down.
+ * 2. Closes the server.
+ */
 function shutdown() {
     console.log('Shutting down gracefully...');
     if (server) {
@@ -371,10 +445,13 @@ function shutdown() {
     }
 }
 
+// Create the express application
 const app = express();
 
 // Middleware
+// Parse cookies
 app.use(cookieParser());
+// Parse JSON bodies
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieSession({
@@ -387,12 +464,17 @@ app.use(cookieSession({
 
 // Watch for changes to the allowed emails file
 fsSync.watch(ALLOWED_EMAILS_FILE, async (eventType) => {
+    // reload the file if a change is detected
     if (eventType === 'change') {
         await loadAllowedEmails();
     }
 });
 
-// Middleware
+/**
+ * @function requireAuth - Middleware to require authentication for protected routes.
+ * Check if the user is authenticated.
+ * If not, redirect to the login page.
+ */
 function requireAuth(req, res, next) {
     // Check if session exists and has the expected structure
     if (req.session && typeof req.session.authenticated === 'boolean' && req.session.authenticated) {
@@ -408,19 +490,31 @@ function requireAuth(req, res, next) {
     }
 }
 
-// Routes
+// Routes part of the application
+// Serve static files from the 'auth' directory for /auth route
 app.use('/auth', express.static(path.join(__dirname, 'auth')));
 
+// GET route for /auth/login
+// If the user is already authenticated, redirect to the home page
+// If not, send the login page.
 app.get('/auth/login', (req, res) => {
     if (req.session.authenticated) {
         return res.redirect('/');
     }
     res.sendFile(path.join(__dirname, 'auth', 'login.html'));
 });
-
+/**
+ * @function /auth/login - POST route for /auth/login.
+ *
+ * Handles the login form submission.
+ * Steps:
+ * 1. Get the email from the request body.
+ * 2. Check if the email is valid.
+ * 3. Add a random delay.
+ */
 app.post('/auth/login', async (req, res) => {
     const { email } = req.body;
-
+    // If the email is not valid, return an error
     if (!email || !email.includes('@')) {
         return res.redirect('/auth/login?error=Invalid email format');
     }
@@ -430,11 +524,20 @@ app.post('/auth/login', async (req, res) => {
         const delay = Math.random() * 1000 + 500;
         await new Promise(resolve => setTimeout(resolve, delay));
 
+        // Check if the email is allowed
         const isAllowed = await isEmailAllowed(email);
+        // If it is allowed, generate and send the link
         if (isAllowed) {
             try {
+                // Construct the base URL dynamically if APP_BASE_URL is not set
+                let baseUrl = APP_BASE_URL;
+                if (!APP_BASE_URL) {
+                    baseUrl = new URL(req.headers.origin);
+                    console.log(`Using dynamically determined base URL: ${baseUrl}`);
+                }
+
                 const token = generateToken();
-                const verificationUrl = `${APP_BASE_URL}/auth/verify?token=${token}`;
+                const verificationUrl = `${baseUrl}/auth/verify?token=${token}`;
                 await sendMagicLinkEmail(email, verificationUrl);
                 console.log(`Successfully generated and sent magic link token for ${email}`);
             } catch (error) {
@@ -447,11 +550,20 @@ app.post('/auth/login', async (req, res) => {
         // Always show the same message, regardless of isAllowed
         res.redirect('/auth/login?message=If your email is registered, you will receive a magic link');
     } catch (error) {
+        // if an error occurs, show an error page.
         console.error('Login error:', error);
         res.redirect('/auth/login?error=An error occurred. Please try again later.');
     }
 });
 
+/**
+ * @function /auth/verify - GET route for /auth/verify.
+ *
+ * Verify the token, and set the session if valid.
+ * Steps:
+ * 1. Check if the token is present in the request.
+ * 2. Try to decrypt the token.
+ */
 app.get('/auth/verify', async (req, res) => {
     const { token } = req.query;
 
@@ -462,7 +574,7 @@ app.get('/auth/verify', async (req, res) => {
     try {
         const payload = decryptToken(token);
 
-        if (Date.now() > payload.expires) {
+        if (Date.now() > payload.expires) {// Check if the token is expired
             return res.status(400).send('Verification link has expired');
         }
 
@@ -488,16 +600,23 @@ app.get('/auth/verify', async (req, res) => {
     }
 });
 
+// POST route for /auth/logout
+// Logout the user, and redirect to the login page
 app.post('/auth/logout', (req, res) => {
+    // Remove the session
     req.session = null;
     res.redirect('/auth/login');
 });
 
-// Protected static files
+// Protected static files part
+// Serve static files from the 'public' directory if the user is logged in
 app.use('/', requireAuth, express.static(path.join(__dirname, 'public')));
 
-// Error handling
+// Error handling part
+// Generic error handler
+// Log the error and send a 500 error.
 app.use((err, req, res, next) => {
+    // Log the error stack
     console.error(err.stack);
     res.status(500).send('Something broke!');
 });
@@ -505,12 +624,16 @@ app.use((err, req, res, next) => {
 // Server instance variable used for graceful shutdown
 let server;
 
-// Load initial allowed emails and start server
+// Start server part
+// Load initial allowed emails and then start the server.
 loadAllowedEmails().then(() => {
     server = app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
     });
 });
 
+// process management part
+// set the function to call on SIGTERM
 process.on('SIGTERM', shutdown);
+// set the function to call on SIGINT
 process.on('SIGINT', shutdown);

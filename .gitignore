@@ -1,3 +1,7 @@
+# production data
+/allowed_emails.txt
+/production.env
+
 # Dependencies
 node_modules/
 npm-debug.log
