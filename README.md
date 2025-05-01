@@ -12,7 +12,7 @@ To keep things simple, I accept some security compromises:
 - We use symmetric encryption for the session cookie and the magic link to avoid having to store secrets in a database.
 - We don't bind the token to the browser to avoid having to store the token on the server.
 - We don't use a refresh token to avoid having to store the refresh token on the server.
-- The magic link expires after 15 minutes, but in that time it can be used multiple times on different devices, e.g. if somebody forwards it to another user.
+- The magic link expires after 15 minutes, but in that time it can be used multiple times on different devices, e.g. if somebody forwarded it to another user.
 
 All that can be mitigated by using a database to store information about the users, their devices, and the tokens.
 
@@ -139,9 +139,20 @@ You can use this docker image in production to replace an existing static websit
    npm install
    ```
 
-2. Create a `.env` file with your configuration
-3. Create an `allowed_emails.txt` file with test email addresses
-4. Start the server:
+2. Create environment files:
+   - `.env` - Default environment file
+   - `production.env` - Production environment
+   - `staging.env` - Staging environment
+   - etc.
+
+3. Start the server with a specific environment file:
+   ```bash
+   # Using NODE_ENV_FILE environment variable
+   NODE_ENV_FILE=production.env node server.js
+   ```
+
+4. Create an `allowed_emails.txt` file with test email addresses
+5. Start the server:
    ```bash
    npm run dev
    ```
@@ -168,3 +179,61 @@ In development mode:
 - `allowed_emails.txt`: List of allowed email addresses
 - `example.env`: Example environment variables
 - `allowed_emails_dev.txt`: List of allowed email addresses (dev)
+
+## Debugging and Tracing
+
+The application supports two modes for debugging and tracing:
+
+### Debug Mode
+
+Enable debug mode by setting the `DEBUG` environment variable to any value:
+```bash
+DEBUG=1 node server.js
+```
+
+Debug mode will output detailed information about:
+- Token generation and verification
+- Session management
+- Authentication state changes
+- Error conditions
+
+Example debug output:
+```
+[DEBUG] Token generated {"expires":1234567890}
+[DEBUG] Session updated {"authenticated":true,"expires":1234567890}
+```
+
+### Trace Mode
+
+Enable trace mode by setting the `TRACE` environment variable to any value:
+```bash
+TRACE=1 node server.js
+```
+
+Trace mode will output detailed HTTP request and response information, including:
+- Request method, URL, and status
+- Response time
+- Complete request and response headers (sorted alphabetically)
+
+Example trace output:
+```
+GET /auth/login 200 15.123 ms
+Request Headers:
+{
+  "accept": "text/html...",
+  "cookie": "session=...",
+  "host": "localhost:3000",
+  "user-agent": "Mozilla/5.0..."
+}
+Response Headers:
+{
+  "content-length": "1234",
+  "content-type": "text/html",
+  "set-cookie": ["session=..."]
+}
+```
+
+Both modes can be enabled simultaneously:
+```bash
+DEBUG=1 TRACE=1 node server.js
+```

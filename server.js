@@ -1,11 +1,13 @@
 // Load environment variables from .env file
-require('dotenv').config();
+const envFile = process.env.NODE_ENV_FILE || '.env';
+require('dotenv').config({ path: envFile });
 // Import required modules
 const express = require('express');
 const cookieSession = require('cookie-session');
 const cookieParser = require('cookie-parser');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const morgan = require('morgan');
 // Import fs modules for file system operations
 const fs = require('fs').promises;
 const path = require('path');
@@ -54,6 +56,35 @@ const {
     PORT = 3000,
     // Get the variable from the env
 } = process.env;
+
+// Debug mode configuration
+const DEBUG = process.env.DEBUG !== undefined;
+if (DEBUG) {
+    console.log('Debug mode is enabled');
+}
+
+// Trace mode configuration
+const TRACE = process.env.TRACE !== undefined;
+if (TRACE) {
+    console.log('Trace mode is enabled');
+    // Helper function to format headers for tracing
+    const formatHeaders = (headers) => JSON.stringify(Object.fromEntries(Object.entries(headers).sort()), null, 2);
+
+    // Custom trace format with full headers
+    morgan.token('req-headers', (req) => formatHeaders(req.headers));
+    morgan.token('res-headers', (req, res) => formatHeaders(res.getHeaders()));
+}
+
+/**
+ * @function debug - Logs debug information if DEBUG environment variable is set.
+ * @param {string} message - The debug message to log.
+ * @param {any} [data] - Optional data to log.
+ */
+function debug(message, data) {
+    if (DEBUG) {
+        console.log(`[DEBUG] ${message}${data !== undefined ? ' ' + JSON.stringify(data) : ''}`);
+    }
+}
 
 // Helper function - Error handling
 /**
@@ -110,7 +141,7 @@ function validateConfig() {
 
     return {
         // Convert hours to milliseconds
-        sessionDuration: sessionDuration * 60 * 60 * 1000, 
+        sessionDuration: sessionDuration * 60 * 60 * 1000,
         emailPort,
         isProduction: NODE_ENV === 'production',
         hasEmailAuth: Boolean(EMAIL_USER && (EMAIL_PASS || EMAIL_API_KEY))
@@ -264,13 +295,17 @@ function generateToken() {
         expires: Date.now() + MAGIC_LINK_EXPIRY
     };
 
+    debug('Generating token with payload:', payload);
+
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(MAGIC_LINK_SECRET, 'hex'), iv);
     let encrypted = cipher.update(JSON.stringify(payload), 'utf8', 'hex');
     encrypted += cipher.final('hex');
     const authTag = cipher.getAuthTag();
 
-    return `${iv.toString('hex')}:${encrypted}:${authTag.toString('hex')}`;
+    const token = `${iv.toString('hex')}:${encrypted}:${authTag.toString('hex')}`;
+    debug('Generated token:', token);
+    return token;
 }
 
 /**
@@ -282,9 +317,11 @@ function generateToken() {
  */
 function decryptToken(token) {
     try {
+        debug('Decrypting token:', token);
         const [ivHex, encrypted, authTagHex] = token.split(':');
 
         if (!ivHex || !encrypted || !authTagHex) {
+            debug('Invalid token format - missing components');
             throw new Error('Invalid token format');
         }
 
@@ -298,13 +335,16 @@ function decryptToken(token) {
         decrypted += decipher.final('utf8');
 
         const payload = JSON.parse(decrypted);
+        debug('Decrypted token payload:', payload);
 
         if (!payload.expires || typeof payload.expires !== 'number') {
+            debug('Invalid token payload - missing or invalid expires field');
             throw new Error('Invalid token payload');
         }
 
         return payload;
     } catch (error) {
+        debug('Token decryption error:', error.message);
         if (error.message === 'Invalid token format') {
             throw error;
         }
@@ -448,7 +488,20 @@ function shutdown() {
 // Create the express application
 const app = express();
 
-// Middleware
+// Middleware Setup
+// Add request logging (enabled by default)
+if (TRACE) {
+    app.use(morgan(`
+:method :url :status :response-time ms
+Request Headers:
+:req-headers
+Response Headers:
+:res-headers
+`));
+} else {
+    app.use(morgan(isProduction ? 'short' : 'dev'));
+}
+
 // Parse cookies
 app.use(cookieParser());
 // Parse JSON bodies
@@ -458,7 +511,7 @@ app.use(cookieSession({
     name: 'session',
     keys: [SESSION_SECRET],
     maxAge: sessionDuration,
-    secure: isProduction && APP_BASE_URL.startsWith('https://'),
+    secure: isProduction && APP_BASE_URL?.startsWith('https://'),
     httpOnly: true
 }));
 
@@ -476,15 +529,18 @@ fsSync.watch(ALLOWED_EMAILS_FILE, async (eventType) => {
  * If not, redirect to the login page.
  */
 function requireAuth(req, res, next) {
-    // Check if session exists and has the expected structure
+    debug('Checking authentication status');
+    debug('Session data:', req.session);
+
     if (req.session && typeof req.session.authenticated === 'boolean' && req.session.authenticated) {
-        // Only update the session if it's below half of its total duration
+        debug('User is authenticated');
         if (!req.session.expires || Date.now() > req.session.expires - (sessionDuration / 2)) {
             req.session.expires = Date.now() + sessionDuration;
+            debug('Updating session expiration to:', req.session.expires);
         }
         next();
     } else {
-        // Clear any invalid session data
+        debug('User is not authenticated, redirecting to login');
         req.session = null;
         res.redirect('/auth/login');
     }
@@ -537,8 +593,10 @@ app.post('/auth/login', async (req, res) => {
                 }
 
                 const token = generateToken();
-                const verificationUrl = `${baseUrl}/auth/verify?token=${token}`;
-                await sendMagicLinkEmail(email, verificationUrl);
+                // Ensure the URL is properly constructed without double slashes
+                const verificationUrl = new URL('/auth/verify', baseUrl);
+                verificationUrl.searchParams.set('token', token);
+                await sendMagicLinkEmail(email, verificationUrl.toString());
                 console.log(`Successfully generated and sent magic link token for ${email}`);
             } catch (error) {
                 console.error(`Failed to generate/send token for ${email}:`, error);
@@ -566,44 +624,48 @@ app.post('/auth/login', async (req, res) => {
  */
 app.get('/auth/verify', async (req, res) => {
     const { token } = req.query;
+    debug('Verifying token from request:', token);
 
     if (!token) {
-        return res.status(400).send('Invalid verification link');
+        debug('No token provided in request');
+        return res.redirect('/auth/login?error=Invalid verification link');
     }
 
     try {
         const payload = decryptToken(token);
+        debug('Token payload:', payload);
 
-        if (Date.now() > payload.expires) {// Check if the token is expired
-            return res.status(400).send('Verification link has expired');
+        if (Date.now() > payload.expires) {
+            debug('Token has expired');
+            return res.redirect('/auth/login?error=Your verification link has expired. Please request a new one.');
         }
 
-        // The token is valid, create a session
+        debug('Token is valid, creating session');
         req.session.authenticated = true;
         res.redirect('/');
     } catch (error) {
-        console.error('Verification error:', error);
-        // Return different error messages based on the specific error
+        debug('Verification error:', error.message);
         if (error.message === 'Invalid token format') {
-            return res.status(400).send('Invalid verification link format');
+            return res.redirect('/auth/login?error=Invalid verification link format');
         }
         if (error.message === 'Invalid token payload') {
-            return res.status(400).send('Invalid verification link data');
+            return res.redirect('/auth/login?error=Invalid verification link data');
         }
         if (error.message === 'Invalid token') {
-            return res.status(400).send('Invalid verification link');
+            return res.redirect('/auth/login?error=Invalid verification link');
         }
         if (error.message === 'Failed to decrypt token') {
-            return res.status(400).send('Could not verify the link');
+            return res.redirect('/auth/login?error=Could not verify the link');
         }
-        return res.status(400).send('Invalid verification link');
+        return res.redirect('/auth/login?error=Invalid verification link');
     }
 });
 
 // POST route for /auth/logout
 // Logout the user, and redirect to the login page
 app.post('/auth/logout', (req, res) => {
-    // Remove the session
+    debug('Logging out user');
+    debug('Previous session data:', req.session);
     req.session = null;
     res.redirect('/auth/login');
 });

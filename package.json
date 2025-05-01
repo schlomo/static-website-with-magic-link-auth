@@ -11,11 +11,12 @@
         "dev": "env ALLOWED_EMAILS_FILE=allowed_emails_dev.txt nodemon server.js"
     },
     "dependencies": {
-        "express": "^4.18.2",
-        "cookie-session": "^2.1.0",
         "cookie-parser": "^1.4.6",
-        "nodemailer": "^6.9.7",
-        "dotenv": "^16.3.1"
+        "cookie-session": "^2.1.0",
+        "dotenv": "^16.3.1",
+        "express": "^4.18.2",
+        "morgan": "^1.10.0",
+        "nodemailer": "^6.9.7"
     },
     "devDependencies": {
         "nodemon": "^3.0.2"
