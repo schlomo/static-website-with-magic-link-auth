@@ -10,7 +10,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   REPO_URL: ${{ github.server_url }}/${{ github.repository }}
-
+  IMAGE_DESCRIPTION: Static Website Hosting with Magic Link Email Authentication
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -46,3 +46,4 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           labels: |
             org.opencontainers.image.source=${{ env.REPO_URL }}
+            org.opencontainers.image.description=${{ env.IMAGE_DESCRIPTION }}

@@ -1,4 +1,4 @@
-# Static Website with Magic Link Authentication
+# Static Website Hosting with Magic Link Email Authentication
 
 A simple Node.js application that serves static files with magic link authentication.
 
