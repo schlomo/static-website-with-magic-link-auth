@@ -8,6 +8,7 @@ const cookieParser = require('cookie-parser');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const morgan = require('morgan');
+const { createHttpTerminator } = require('http-terminator');
 // Import fs modules for file system operations
 const fs = require('fs').promises;
 const path = require('path');
@@ -456,40 +457,11 @@ async function sendMagicLinkEmail(email, verificationUrl) {
     }
 }
 
-/**
- * @function shutdown - Handles the server's graceful shutdown.
- *
- * This function is called when the server receives a SIGTERM or SIGINT signal.
- * It closes the server and exits the process.
- * Steps:
- * 1. Logs a message indicating that the server is shutting down.
- * 2. Closes the server.
- */
-function shutdown() {
-    console.log('Shutting down gracefully...');
-    if (server) {
-        server.close((err) => {
-            if (err) {
-                console.error('Error closing server:', err);
-                process.exit(1);
-            }
-            setTimeout(() => {
-                console.error('Server close timeout - forcing exit');
-                process.exit(1);
-            }, 10000); // 10 second timeout
-            console.log('Server closed');
-            process.exit(0);
-        });
-    } else {
-        process.exit(0);
-    }
-}
-
 // Create the express application
 const app = express();
 
 // Middleware Setup
-// Add request logging (enabled by default)
+// Add request logging or tracing
 if (TRACE) {
     app.use(morgan(`
 :method :url :status :response-time ms
@@ -685,6 +657,7 @@ app.use((err, req, res, next) => {
 
 // Server instance variable used for graceful shutdown
 let server;
+let httpTerminator;
 
 // Start server part
 // Load initial allowed emails and then start the server.
@@ -692,6 +665,7 @@ loadAllowedEmails().then(() => {
     server = app.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
     });
+    httpTerminator = createHttpTerminator({ server });
 });
 
 // process management part
@@ -699,3 +673,42 @@ loadAllowedEmails().then(() => {
 process.on('SIGTERM', shutdown);
 // set the function to call on SIGINT
 process.on('SIGINT', shutdown);
+
+/**
+ * @function shutdown - Handles the server's graceful shutdown.
+ *
+ * This function is called when the server receives a SIGTERM or SIGINT signal.
+ * It closes the server and exits the process.
+ * Steps:
+ * 1. Logs a message indicating that the server is shutting down.
+ * 2. Uses http-terminator to gracefully close all connections.
+ * 3. Exits the process.
+ */
+async function shutdown() {
+    console.log('Shutting down gracefully...');
+
+    if (!httpTerminator) {
+        console.log('No server instance found, exiting immediately');
+        process.exit(0);
+        return;
+    }
+
+    // Set a flag to prevent multiple shutdown attempts
+    if (shutdown.shuttingDown) {
+        console.log('Shutdown already in progress');
+        return;
+    }
+    shutdown.shuttingDown = true;
+
+    try {
+        await httpTerminator.terminate();
+        console.log('Server shut down successfully');
+        process.exit(0);
+    } catch (err) {
+        console.error('Error during shutdown:', err);
+        process.exit(1);
+    }
+}
+
+// Initialize the shutdown flag
+shutdown.shuttingDown = false;
