@@ -51,7 +51,7 @@
                     <label for="email">Email Address</label>
                     <input type="email" id="email" name="email" required>
                 </div>
-
+                <input type="hidden" name="redirect" id="redirect">
                 <button type="submit">Send Magic Link</button>
             </form>
 
@@ -67,9 +67,15 @@
         const params = new URLSearchParams(window.location.search);
         const error = params.get('error');
         const message = params.get('message');
+        const redirect = params.get('redirect');
         const messagesDiv = document.getElementById('messages');
         const loadingDiv = document.getElementById('loading');
         const form = document.getElementById('loginForm');
+        const redirectInput = document.getElementById('redirect');
+
+        if (redirect) {
+            redirectInput.value = redirect;
+        }
 
         if (error) {
             messagesDiv.innerHTML = `<div class="error">${decodeURIComponent(error)}</div>`;

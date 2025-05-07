@@ -2,5 +2,7 @@
 # One email per line
 # Lines starting with # are comments
 # Empty lines are ignored
+# sha256 hash of email
 
-nobody@nowhere.com
+nobody@nowhere.com # plain email
+cfa4df3585b2527501c8f746361b8d3983e0b368ed403aeddce59f4d73c8dec6 # Schlomo

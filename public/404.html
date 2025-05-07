@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oops! - Protected Website</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        .error-container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .error-image {
+            max-width: 100%;
+            height: auto;
+            margin: 2rem 0;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .error-actions {
+            margin-top: 2rem;
+        }
+
+        .error-actions form {
+            display: inline-block;
+            margin: 0 1rem;
+        }
+
+        .error-actions button {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background-color: #4CAF50;
+            color: white;
+            transition: background-color 0.3s;
+        }
+
+        .error-actions button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <nav>
+            <div class="logo">Protected Site</div>
+            <ul>
+                <li><a href="/">Home</a></li>
+                <li><a href="/about.html">About</a></li>
+                <li><a href="/contact.html">Contact</a></li>
+            </ul>
+            <form action="/auth/logout" method="POST" class="logout-form">
+                <button type="submit">Sign Out</button>
+            </form>
+        </nav>
+    </header>
+
+    <main>
+        <div class="error-container">
+            <h1>Oops! Something went wrong</h1>
+            <svg class="error-image" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+                <!-- Background -->
+                <rect width="400" height="300" fill="#f8f9fa" />
+
+                <!-- 404 Text -->
+                <text x="200" y="100" font-family="Arial" font-size="60" font-weight="bold" text-anchor="middle"
+                    fill="#343a40">404</text>
+
+                <!-- Confused Face -->
+                <circle cx="200" cy="180" r="40" fill="#ffd43b" stroke="#343a40" stroke-width="2" />
+                <!-- Eyes -->
+                <circle cx="180" cy="170" r="5" fill="#343a40" />
+                <circle cx="220" cy="170" r="5" fill="#343a40" />
+                <!-- Confused Mouth -->
+                <path d="M180 200 Q200 190 220 200" stroke="#343a40" stroke-width="2" fill="none" />
+
+                <!-- Question Mark -->
+                <text x="200" y="260" font-family="Arial" font-size="24" text-anchor="middle" fill="#343a40">Where did
+                    it go?</text>
+
+                <!-- Decorative Elements -->
+                <circle cx="50" cy="50" r="20" fill="#ff6b6b" opacity="0.3" />
+                <circle cx="350" cy="250" r="15" fill="#4dabf7" opacity="0.3" />
+                <circle cx="350" cy="50" r="25" fill="#51cf66" opacity="0.3" />
+                <circle cx="50" cy="250" r="18" fill="#ffd43b" opacity="0.3" />
+            </svg>
+
+            <div class="error-actions">
+                <a href="/"><button>Go Home</button></a>
+                <form action="/auth/logout" method="POST">
+                    <button type="submit">Sign Out</button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Protected Website. All rights reserved.</p>
+    </footer>
+</body>
+
+</html>

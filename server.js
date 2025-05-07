@@ -14,6 +14,9 @@ const fs = require('fs').promises;
 const path = require('path');
 const fsSync = require('fs');
 
+// Constants
+const PUBLIC_DIR = path.join(__dirname, 'public');
+
 // Destructure environment variables, providing default values
 const {
     // Session configuration
@@ -227,40 +230,80 @@ function processTemplate(template, variables) {
 }
 
 // Variables
-// Set that contains the allowed emails
+// Set that contains the allowed email hashes
 let allowedEmails = new Set();
 
 /**
- * @function loadAllowedEmails - Loads allowed emails from the file specified by ALLOWED_EMAILS_FILE.
- *
- * This function reads a file that should contain one allowed email per line.
- * It validates each email format and stores them in the allowedEmails Set.
+ * @function hashEmail - Creates a SHA-256 hash of an email address.
+ * @param {string} email - The email to hash.
+ * @returns {string} - The hex-encoded hash of the email.
  */
+const hashEmail = email => crypto.createHash('sha256').update(email.toLowerCase()).digest('hex');
 
+/**
+ * @function loadAllowedEmails - Loads allowed emails from the file specified by ALLOWED_EMAILS_FILE.
+ * All entries (both emails and hashes) are stored as SHA-256 hashes for consistency.
+ */
 async function loadAllowedEmails() {
     try {
         const content = await fs.readFile(ALLOWED_EMAILS_FILE, 'utf-8');
-        const emails = content
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line && !line.startsWith('#'))
-            .map(email => email.toLowerCase());
+        allowedEmails = new Set(); // Reset the global Set
+        const errors = [];
+        let lineNumber = 0;
+        let emailCount = 0;
+        let hashCount = 0;
 
-        // Validate all emails
-        const invalidEmails = emails.filter(email => !isValidEmail(email));
-        if (invalidEmails.length > 0) {
-            fatalError(`Error: Invalid email format(s) in allowed emails file: ${invalidEmails.join(', ')}\n` +
-                `File: ${ALLOWED_EMAILS_FILE}\n` +
-                `Please fix the email format(s) and try again.`);
+        for (const line of content.split('\n')) {
+            lineNumber++;
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) continue;
+
+            // Extract entry before comment
+            const entry = trimmed.split(/#/)[0].trim();
+            if (!entry) continue;
+
+            // Check if it's already a SHA-256 hash
+            if (/^[a-f0-9]{64}$/i.test(entry)) {
+                const hash = entry.toLowerCase();
+                const wasAdded = !allowedEmails.has(hash);
+                allowedEmails.add(hash);
+                if (wasAdded) {
+                    hashCount++;
+                    debug(`Added new hash: ${hash}`);
+                } else {
+                    debug(`Skipped duplicate hash: ${hash}`);
+                }
+            } else if (isValidEmail(entry)) {
+                // Hash the email and store the hash
+                const hash = hashEmail(entry.toLowerCase());
+                allowedEmails.add(hash);
+                emailCount++;
+                debug(`Added email hash: ${hash} for ${entry.toLowerCase()}`);
+            } else {
+                errors.push(`Line ${lineNumber}: Invalid format - must be either a valid email or a SHA-256 hash: ${entry}`);
+            }
         }
 
-        allowedEmails = new Set(emails);
-        console.log(`Loaded ${allowedEmails.size} allowed email(s) from ${ALLOWED_EMAILS_FILE}`);
+        if (errors.length > 0) {
+            fatalError(`Error in ${ALLOWED_EMAILS_FILE}:\n${errors.join('\n')}\n\n` +
+                `Each line must be either:\n` +
+                `- A valid email address\n` +
+                `- A SHA-256 hash (64 hexadecimal characters)\n` +
+                `- A comment line starting with #\n` +
+                `- An email/hash followed by a comment (space or tab followed by #)`);
+        }
+
+        console.log(`Loaded ${emailCount} email(s) and ${hashCount} hash(es) from ${ALLOWED_EMAILS_FILE}`);
+        debug(`Current allowed hashes: ${Array.from(allowedEmails).join(', ')}`);
     } catch (error) {
         if (error.code === 'ENOENT') {
             fatalError(`Error: Allowed emails file not found at ${ALLOWED_EMAILS_FILE}\n` +
                 `Please create the file with one email address per line.\n` +
-                `Lines starting with # are comments and will be ignored.`);
+                `Each line must be either:\n` +
+                `- A valid email address\n` +
+                `- A SHA-256 hash (64 hexadecimal characters)\n` +
+                `- A comment line starting with #\n` +
+                `- An email/hash followed by a comment (space or tab followed by #)`);
         } else if (error.code === 'EACCES') {
             fatalError(`Error: Permission denied reading allowed emails file at ${ALLOWED_EMAILS_FILE}\n` +
                 `Please check file permissions and ensure the application can read the file.`);
@@ -276,12 +319,16 @@ async function loadAllowedEmails() {
 }
 
 /**
- * @function isEmailAllowed - Checks if an email is in the allowedEmails set.
+ * @function isEmailAllowed - Checks if an email is in the allowed set.
  * @param {string} email - The email to check.
  * @returns {boolean} - True if the email is allowed, false otherwise.
  */
 function isEmailAllowed(email) {
-    return allowedEmails.has(email.toLowerCase());
+    const normalizedEmail = email.toLowerCase();
+    const hash = hashEmail(normalizedEmail);
+    const isAllowed = allowedEmails.has(hash);
+    debug(`Checking email: ${normalizedEmail}, hash: ${hash}, allowed: ${isAllowed}`);
+    return isAllowed;
 }
 
 /**
@@ -291,9 +338,10 @@ function isEmailAllowed(email) {
  * encrypts it using AES-256-GCM, and formats it for use in a URL.
  * @returns {string} - The generated token.
  */
-function generateToken() {
+function generateToken(redirect) {
     const payload = {
-        expires: Date.now() + MAGIC_LINK_EXPIRY
+        expires: Date.now() + MAGIC_LINK_EXPIRY,
+        redirect: redirect || '/'
     };
 
     debug('Generating token with payload:', payload);
@@ -474,6 +522,9 @@ Response Headers:
     app.use(morgan(isProduction ? 'short' : 'dev'));
 }
 
+// Allow unauthenticated access to favicon only
+app.use('/favicon.ico', express.static(path.join(PUBLIC_DIR, 'favicon.ico')));
+
 // Parse cookies
 app.use(cookieParser());
 // Parse JSON bodies
@@ -514,7 +565,8 @@ function requireAuth(req, res, next) {
     } else {
         debug('User is not authenticated, redirecting to login');
         req.session = null;
-        res.redirect('/auth/login');
+        // Store the original URL to redirect back after login
+        return redirectToLogin(res, { redirect: req.originalUrl });
     }
 }
 
@@ -527,6 +579,8 @@ app.use('/auth', express.static(path.join(__dirname, 'auth')));
 // If not, send the login page.
 app.get('/auth/login', (req, res) => {
     if (req.session.authenticated) {
+        // If the user is already authenticated, redirect to the home page
+        debug('User is already authenticated, redirecting to home');
         return res.redirect('/');
     }
     res.sendFile(path.join(__dirname, 'auth', 'login.html'));
@@ -541,10 +595,10 @@ app.get('/auth/login', (req, res) => {
  * 3. Add a random delay.
  */
 app.post('/auth/login', async (req, res) => {
-    const { email } = req.body;
+    const { email, redirect } = req.body;
     // If the email is not valid, return an error
-    if (!email || !email.includes('@')) {
-        return res.redirect('/auth/login?error=Invalid email format');
+    if (!email || !isValidEmail(email)) {
+        return redirectToLogin(res, { error: 'Invalid email format' });
     }
 
     try {
@@ -564,7 +618,7 @@ app.post('/auth/login', async (req, res) => {
                     console.log(`Using dynamically determined base URL: ${baseUrl}`);
                 }
 
-                const token = generateToken();
+                const token = generateToken(redirect);
                 // Ensure the URL is properly constructed without double slashes
                 const verificationUrl = new URL('/auth/verify', baseUrl);
                 verificationUrl.searchParams.set('token', token);
@@ -578,11 +632,13 @@ app.post('/auth/login', async (req, res) => {
             console.log(`Login attempt rejected for unauthorized email: ${email}`);
         }
         // Always show the same message, regardless of isAllowed
-        res.redirect('/auth/login?message=If your email is registered, you will receive a magic link');
+        return redirectToLogin(res, {
+            message: 'If your email is registered, you will receive a magic link'
+        });
     } catch (error) {
         // if an error occurs, show an error page.
         console.error('Login error:', error);
-        res.redirect('/auth/login?error=An error occurred. Please try again later.');
+        return redirectToLogin(res, { error: 'An error occurred. Please try again later.' });
     }
 });
 
@@ -599,8 +655,7 @@ app.get('/auth/verify', async (req, res) => {
     debug('Verifying token from request:', token);
 
     if (!token) {
-        debug('No token provided in request');
-        return res.redirect('/auth/login?error=Invalid verification link');
+        return redirectToLogin(res, { error: 'Invalid verification link' });
     }
 
     try {
@@ -608,28 +663,28 @@ app.get('/auth/verify', async (req, res) => {
         debug('Token payload:', payload);
 
         if (Date.now() > payload.expires) {
-            debug('Token has expired');
-            return res.redirect('/auth/login?error=Your verification link has expired. Please request a new one.');
+            return redirectToLogin(res, { error: 'Your verification link has expired. Please request a new one.' });
         }
 
         debug('Token is valid, creating session');
         req.session.authenticated = true;
-        res.redirect('/');
+        // Redirect to the URL stored in the token
+        res.redirect(payload.redirect || '/');
     } catch (error) {
         debug('Verification error:', error.message);
         if (error.message === 'Invalid token format') {
-            return res.redirect('/auth/login?error=Invalid verification link format');
+            return redirectToLogin(res, { error: 'Invalid verification link format' });
         }
         if (error.message === 'Invalid token payload') {
-            return res.redirect('/auth/login?error=Invalid verification link data');
+            return redirectToLogin(res, { error: 'Invalid verification link data' });
         }
         if (error.message === 'Invalid token') {
-            return res.redirect('/auth/login?error=Invalid verification link');
+            return redirectToLogin(res, { error: 'Invalid verification link' });
         }
         if (error.message === 'Failed to decrypt token') {
-            return res.redirect('/auth/login?error=Could not verify the link');
+            return redirectToLogin(res, { error: 'Could not verify the link' });
         }
-        return res.redirect('/auth/login?error=Invalid verification link');
+        return redirectToLogin(res, { error: 'Invalid verification link' });
     }
 });
 
@@ -639,12 +694,17 @@ app.post('/auth/logout', (req, res) => {
     debug('Logging out user');
     debug('Previous session data:', req.session);
     req.session = null;
-    res.redirect('/auth/login');
+    return redirectToLogin(res);
 });
 
 // Protected static files part
 // Serve static files from the 'public' directory if the user is logged in
-app.use('/', requireAuth, express.static(path.join(__dirname, 'public')));
+app.use('/', requireAuth, express.static(PUBLIC_DIR));
+
+// 404 handler - must be after all other routes
+app.use((req, res) => {
+    res.status(404).sendFile(path.join(PUBLIC_DIR, '404.html'));
+});
 
 // Error handling part
 // Generic error handler
@@ -652,7 +712,7 @@ app.use('/', requireAuth, express.static(path.join(__dirname, 'public')));
 app.use((err, req, res, next) => {
     // Log the error stack
     console.error(err.stack);
-    res.status(500).send('Something broke!');
+    res.status(500).sendFile(path.join(PUBLIC_DIR, '404.html'));
 });
 
 // Server instance variable used for graceful shutdown
@@ -712,3 +772,12 @@ async function shutdown() {
 
 // Initialize the shutdown flag
 shutdown.shuttingDown = false;
+
+// Helper function to redirect to login page with optional error/message
+function redirectToLogin(res, { error, message, redirect } = {}) {
+    const params = new URLSearchParams();
+    if (error) params.append('error', error);
+    if (message) params.append('message', message);
+    if (redirect) params.append('redirect', redirect);
+    res.redirect(`/auth/login${params.toString() ? '?' + params.toString() : ''}`);
+}

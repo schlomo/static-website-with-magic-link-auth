@@ -18,70 +18,68 @@ All that can be mitigated by using a database to store information about the use
 
 Please send me PRs to make this code better!
 
-## License
-
-This project is licensed under the GNU General Public License v3.0 (GPLv3). See the [LICENSE](LICENSE) file for details.
-
-## Docker Image
-
-The Docker image is automatically built and published to GitHub Container Registry (ghcr.io) on every push to the main branch.
-
-To use the image:
-
-```bash
-docker pull ghcr.io/schlomo/static-website-with-magic-link-auth:latest
-```
-
-Or in a docker-compose.yml:
-
-```yaml
-services:
-  app:
-    image: ghcr.io/schlomo/static-website-with-magic-link-auth:latest
-    # ... rest of your configuration
-```
-
 ## Features
+- 🔒 Magic link authentication (no passwords needed)
+- 📧 Email-based login
+- 🛡️ Secure session management
+- 📝 Configurable email templates
+- 🔄 Automatic session refresh
+- 🎨 Customizable error pages
+- 🔍 Debug and trace modes
+- 🔐 Support for both plaintext and hashed email addresses
 
-- Static file serving with authentication
-- Magic link authentication via email
-- Stateless and not database required
-- Configurable email settings
-- Docker support and very lightweight
+## Quick Start
+
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Create a `.env` file (see Configuration section)
+4. Create an `allowed_emails.txt` file with authorized email addresses
+5. Start the server: `npm start`
 
 ## Configuration
 
-### Environment Variables
+Create a `.env` file in the root directory with the following variables:
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `SESSION_SECRET` | 32-byte hex string for session encryption | `2b7e151628aed2a6abf7158809cf4f3c2b7e151628aed2a6abf7158809cf4f3c` | Yes |
-| `MAGIC_LINK_SECRET` | 32-byte hex string for magic link encryption | `2b7e151628aed2a6abf7158809cf4f3c2b7e151628aed2a6abf7158809cf4f3c` | Yes |
-| `EMAIL_HOST` | SMTP server host | `aspmx.l.google.com` | No |
-| `EMAIL_PORT` | SMTP server port | `25` | No |
-| `EMAIL_USER` | SMTP username | empty | No |
-| `EMAIL_PASS` | SMTP password | empty | No |
-| `EMAIL_API_KEY` | Alternative to username/password | empty | No |
-| `EMAIL_FROM` | Sender email address | `"Magic Link Auth <noreply@localhost>"` | No |
-| `EMAIL_SUBJECT` | Subject line for magic link emails | `"Your Magic Link"` | No |
-| `EMAIL_TEXT_TEMPLATE` | Plain text template for magic link emails | `"Click this link to sign in: {url}"` | No |
-| `EMAIL_HTML_TEMPLATE` | HTML template for magic link emails | See server.js | No |
-| `APP_NAME` | Application name for email templates | `"Static Website with Magic Link Auth App"` | No |
-| `APP_BASE_URL` | Base URL for magic links | `http://localhost:3000` | No |
-| `NODE_ENV` | Environment (development/production) | `development` | No |
-| `SESSION_HOURS` | Session duration in hours | `24` | No |
-| `ALLOWED_EMAILS_FILE` | Path to file containing allowed emails | `allowed_emails.txt` | No |
-| `PORT` | Server port | `3000` | No |
+```env
+# Required
+SESSION_SECRET=your-32-byte-hex-secret
+MAGIC_LINK_SECRET=your-32-byte-hex-secret
+
+# Optional
+PORT=3000
+NODE_ENV=development
+APP_NAME="Your App Name"
+APP_BASE_URL=http://localhost:3000
+SESSION_HOURS=24
+ALLOWED_EMAILS_FILE=allowed_emails.txt
+
+# Email Configuration (optional)
+EMAIL_HOST=smtp.example.com
+EMAIL_PORT=587
+EMAIL_USER=your-email@example.com
+EMAIL_PASS=your-password
+# Or use API key
+EMAIL_API_KEY=your-api-key
+EMAIL_FROM="Your App <noreply@example.com>"
+```
 
 ### Email Configuration
 
-The application supports two authentication methods for sending emails:
-1. Username/Password authentication
-2. API Key authentication
+You can configure email sending in two ways:
 
-At least one of these must be configured for email functionality to work:
-- Set both `EMAIL_USER` and `EMAIL_PASS` for username/password auth
-- Set `EMAIL_API_KEY` for API key auth, it will use `apikey` as the username
+1. SMTP Server:
+```env
+EMAIL_HOST=smtp.example.com
+EMAIL_PORT=587
+EMAIL_USER=your-email@example.com
+EMAIL_PASS=your-password
+```
+
+2. API Key (e.g., for SendGrid):
+```env
+EMAIL_API_KEY=your-api-key
+EMAIL_USER=apikey
+```
 
 ### Email Templates
 
@@ -98,26 +96,20 @@ Templates support the following variables:
 
 You can customize the login page by changing the `login.html` file in the `auth` directory or by mounting another version of login page and assets at `/app/auth`.
 
-## Allowed Emails
+## Allowed Emails File
 
-The application uses a file called `allowed_emails.txt` to determine which email addresses are allowed to log in. This file:
+Create an `allowed_emails.txt` file (or specify a different name in `ALLOWED_EMAILS_FILE`) with one email address per line. You can use either plaintext emails or SHA-256 hashes.
 
-- Must be mounted into the container at `/app/allowed_emails.txt` (or whatever you set the `ALLOWED_EMAILS_FILE` to)
-- Contains one email address per line
-- Lines starting with # are comments
-- Empty lines are ignored
-- Is case-insensitive
-- Is automatically reloaded when changed
-
-Example format:
+Example `allowed_emails.txt`:
 ```
-# Admin users
-admin@example.com
-support@example.com
+# This is a comment
+user@example.com # This is an inline comment
+8f4e2f1b3c7d6e5a9b8c7d6e5a9b8c7d6e5a9b8c7d6e5a9b8c7d6e5a9b8c7d6e5 # This is a hashed email
+```
 
-# Regular users
-user1@example.com
-user2@example.com
+To generate a hash for an email, you can use:
+```bash
+echo -n "user@example.com" | shasum -a 256
 ```
 
 ## Docker Deployment
@@ -143,7 +135,7 @@ You can use this docker image in production to replace an existing static websit
    - `.env` - Default environment file
    - `production.env` - Production environment
    - `staging.env` - Staging environment
-   - etc.
+   etc.
 
 3. Start the server with a specific environment file:
    ```bash
@@ -170,6 +162,10 @@ In development mode:
 - Sessions expire based on SESSION_HOURS, extended after less than half the time remaining
 - Non-root user in Docker
 - Proper signal handling for graceful shutdown
+- Support for hashed email addresses
+- No password storage
+- Configurable session duration
+- Automatic session refresh
 
 ## File Structure
 
@@ -236,4 +232,27 @@ Response Headers:
 Both modes can be enabled simultaneously:
 ```bash
 DEBUG=1 TRACE=1 node server.js
+```
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 (GPLv3). See the [LICENSE](LICENSE) file for details.
+
+## Docker Image
+
+The Docker image is automatically built and published to GitHub Container Registry (ghcr.io) on every push to the main branch.
+
+To use the image:
+
+```bash
+docker pull ghcr.io/schlomo/static-website-with-magic-link-auth:latest
+```
+
+Or in a docker-compose.yml:
+
+```yaml
+services:
+  app:
+    image: ghcr.io/schlomo/static-website-with-magic-link-auth:latest
+    # ... rest of your configuration
 ```
