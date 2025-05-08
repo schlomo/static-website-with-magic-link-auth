@@ -176,6 +176,43 @@ In development mode:
 - `example.env`: Example environment variables
 - `allowed_emails_dev.txt`: List of allowed email addresses (dev)
 
+## Docker Image
+
+The Docker image is automatically built and published to GitHub Container Registry (ghcr.io) on every push to the main branch.
+
+To use the image:
+
+```bash
+docker pull ghcr.io/schlomo/static-website-with-magic-link-auth:latest
+```
+
+Or in a docker-compose.yml:
+
+```yaml
+services:
+  app:
+    image: ghcr.io/schlomo/static-website-with-magic-link-auth:latest
+    # ... rest of your configuration
+```
+Just make sure to provide the configuration via environment variables and to add also the file with the allowed emails. You can either mount your own path with the static website onto `/public` or set a new path via the `PUBLIC_DIR` variable. Mount the content for the authentication page onto `/auth` or set a new path via the `AUTH_DIR` variable. Use the content of the `auth` dir here for inspiration.
+
+To build your own Docker image based on this you can create a Docker file like this one:
+
+```Dockerfile
+FROM ghcr.io/schlomo/static-website-with-magic-link-auth:latest
+
+COPY my-website /my-website
+ENV PUBLIC_DIR /my-website
+COPY my-auth /my-auth
+ENV AUTH_DIR /my-auth
+COPY my-allowed-emails.txt /my-allowed-emails.txt
+ENV ALLOWED_EMAILS_FILE /my-allowed-emails.txt
+COPY my-config.env /my-config.env
+ENV NODE_ENV_FILE /my-config.env
+```
+
+And of course add the remaining configuration to `my-config.env`.
+
 ## Debugging and Tracing
 
 The application supports two modes for debugging and tracing:
@@ -237,22 +274,3 @@ DEBUG=1 TRACE=1 node server.js
 ## License
 
 This project is licensed under the GNU General Public License v3.0 (GPLv3). See the [LICENSE](LICENSE) file for details.
-
-## Docker Image
-
-The Docker image is automatically built and published to GitHub Container Registry (ghcr.io) on every push to the main branch.
-
-To use the image:
-
-```bash
-docker pull ghcr.io/schlomo/static-website-with-magic-link-auth:latest
-```
-
-Or in a docker-compose.yml:
-
-```yaml
-services:
-  app:
-    image: ghcr.io/schlomo/static-website-with-magic-link-auth:latest
-    # ... rest of your configuration
-```

@@ -14,22 +14,19 @@ const fs = require('fs').promises;
 const path = require('path');
 const fsSync = require('fs');
 
-// Constants
-const PUBLIC_DIR = path.join(__dirname, 'public');
-
 // Destructure environment variables, providing default values
 const {
     // Session configuration
     SESSION_SECRET = '2b7e151628aed2a6abf7158809cf4f3c2b7e151628aed2a6abf7158809cf4f3c',
     MAGIC_LINK_SECRET = '2b7e151628aed2a6abf7158809cf4f3c2b7e151628aed2a6abf7158809cf4f3c',
-    EMAIL_HOST = '',
+    EMAIL_HOST = '127.0.0.1',
     EMAIL_PORT = 25,
     EMAIL_USER = '',
     EMAIL_PASS = '',
     EMAIL_API_KEY = '',
     // Email default values
     EMAIL_FROM = '"Magic Link Auth" <noreply@localhost>',
-    EMAIL_SUBJECT = 'Your Magic Link',
+    EMAIL_SUBJECT = 'Your Magic Link for {appName}',
     EMAIL_TEXT_TEMPLATE = 'Click this link to sign in: {url}',
     EMAIL_HTML_TEMPLATE = `
         <!DOCTYPE html>
@@ -56,7 +53,9 @@ const {
     APP_BASE_URL,
     NODE_ENV = 'development',
     SESSION_HOURS = 24,
-    ALLOWED_EMAILS_FILE = 'allowed_emails.txt',
+    ALLOWED_EMAILS_FILE = path.join(__dirname, 'allowed_emails.txt'),
+    PUBLIC_DIR = path.join(__dirname, 'public'),
+    AUTH_DIR = path.join(__dirname, 'auth'),
     PORT = 3000,
     // Get the variable from the env
 } = process.env;
@@ -189,6 +188,9 @@ EMAIL_SUBJECT: ${EMAIL_SUBJECT}
 EMAIL_TEXT_TEMPLATE: ${EMAIL_TEXT_TEMPLATE}
 EMAIL_HTML_TEMPLATE: ${EMAIL_HTML_TEMPLATE.length} characters
 ALLOWED_EMAILS_FILE: ${ALLOWED_EMAILS_FILE}
+PUBLIC_DIR: ${PUBLIC_DIR}
+AUTH_DIR: ${AUTH_DIR}
+
 -------------------
 Derived Configuration:
 -------------------
@@ -432,15 +434,6 @@ const transporter = nodemailer.createTransport({
  * @returns {Promise<void>} - Promise that resolves when the email is sent.
  */
 async function sendMagicLinkEmail(email, verificationUrl) {
-    if (!EMAIL_FROM) {
-        console.error('Error: No FROM address configured. Set EMAIL_FROM environment variable with format: "Display Name" <email@domain.com>');
-        console.log('Email would be sent with these options:', {
-            to: email,
-            subject: processTemplate(EMAIL_SUBJECT, { url: verificationUrl }),
-            verificationUrl: verificationUrl
-        });
-        return;
-    }
 
     const templateVariables = {
         url: verificationUrl,
@@ -448,10 +441,22 @@ async function sendMagicLinkEmail(email, verificationUrl) {
         expiryMinutes: Math.floor(MAGIC_LINK_EXPIRY / (60 * 1000))
     };
 
+    const subject = processTemplate(EMAIL_SUBJECT, templateVariables);
+
+    if (!EMAIL_FROM) {
+        console.error('Error: No FROM address configured. Set EMAIL_FROM environment variable with format: "Display Name" <email@domain.com>');
+        console.log('Email would be sent with these options:', {
+            to: email,
+            subject,
+            verificationUrl
+        });
+        return;
+    }
+
     const mailOptions = {
         from: EMAIL_FROM,
         to: email,
-        subject: processTemplate(EMAIL_SUBJECT, templateVariables),
+        subject,
         text: processTemplate(EMAIL_TEXT_TEMPLATE, templateVariables),
         html: processTemplate(EMAIL_HTML_TEMPLATE, templateVariables)
     };
@@ -571,8 +576,8 @@ function requireAuth(req, res, next) {
 }
 
 // Routes part of the application
-// Serve static files from the 'auth' directory for /auth route
-app.use('/auth', express.static(path.join(__dirname, 'auth')));
+// Serve static files from the auth directory for /auth route
+app.use('/auth', express.static(AUTH_DIR));
 
 // GET route for /auth/login
 // If the user is already authenticated, redirect to the home page
@@ -583,7 +588,7 @@ app.get('/auth/login', (req, res) => {
         debug('User is already authenticated, redirecting to home');
         return res.redirect('/');
     }
-    res.sendFile(path.join(__dirname, 'auth', 'login.html'));
+    res.sendFile(path.join(AUTH_DIR, 'login.html'));
 });
 /**
  * @function /auth/login - POST route for /auth/login.
@@ -779,5 +784,5 @@ function redirectToLogin(res, { error, message, redirect } = {}) {
     if (error) params.append('error', error);
     if (message) params.append('message', message);
     if (redirect) params.append('redirect', redirect);
-    res.redirect(`/auth/login${params.toString() ? '?' + params.toString() : ''}`);
+    res.redirect(`/auth/login${params.size > 0 ? '?' + params.toString() : ''}`);
 }
