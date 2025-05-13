@@ -31,7 +31,7 @@ Please send me PRs to make this code better!
 
 ## Live Demo
 
-<iframe width="500" height="315" src="https://www.youtube-nocookie.com/embed/iyMaHxJ73_k?si=clZf4UdY5yhBVErh" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+[![Demo Video](https://img.youtube.com/vi/iyMaHxJ73_k/0.jpg)](https://www.youtube.com/watch?v=iyMaHxJ73_k)
 
 ## Quick Start
 
