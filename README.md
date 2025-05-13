@@ -148,8 +148,8 @@ You can use this docker image in production to replace an existing static websit
    NODE_ENV_FILE=production.env node server.js
    ```
 
-4. Create an `allowed_emails.txt` file with test email addresses
-5. Start the server:
+4. Create an `allowed_emails.txt` file with test email addresses (make sure to use the same file as defined in your configuration)
+5. Start the server in dev mode with `allowed_emails_dev.txt`:
    ```bash
    npm run dev
    ```
@@ -158,7 +158,7 @@ You can use this docker image in production to replace an existing static websit
 
 In development mode:
 - Emails are logged to console
-- Sends out emails unless EMAIL_HOST is left empty
+- Sends out emails unless EMAIL_HOST is left empty or set to a non-reachable host like `127.0.0.1`
 
 ## Security
 
