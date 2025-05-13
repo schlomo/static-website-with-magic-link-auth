@@ -2,7 +2,8 @@
 
 A simple Node.js application that serves static files with magic link authentication.
 
-This implements the ideas described in my blog post [A Login Security Architecture Without Passwords](https://schlomo.schapiro.org/2022/02/login-security-architecture-without-passwords.html).
+This implements the ideas described in my blog post [A Login Security Architecture Without Passwords](https://schlomo.schapiro.org/2022/02/login-security-architecture-without-passwords.html). See my new blog post [Static Website Authentication with Magic Link Made Easy
+](https://schlomo.schapiro.org/2025/05/static-website-authentication-with.html) for more details about this implementation.
 
 I wanted to create a simple example that shows how to implement this security architecture.
 
@@ -27,6 +28,10 @@ Please send me PRs to make this code better!
 - 🎨 Customizable error pages
 - 🔍 Debug and trace modes
 - 🔐 Support for both plaintext and hashed email addresses
+
+## Live Demo
+
+<iframe width="500" height="315" src="https://www.youtube-nocookie.com/embed/iyMaHxJ73_k?si=clZf4UdY5yhBVErh" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
 ## Quick Start
 
